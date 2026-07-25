@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complaint Management System</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+        
+        .app-container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        
+        /* Login Screen */
+        .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .login-box { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 100%; max-width: 400px; }
+        .login-box h2 { text-align: center; margin-bottom: 30px; color: #1a1a2e; font-size: 28px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; font-size: 14px; }
+        .form-group input { width: 100%; padding: 14px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; transition: all 0.3s; }
+        .form-group input:focus { outline: none; border-color: #667eea; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.3s; }
+        .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4); }
+        .btn-success { background: #10b981; color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-sm { padding: 8px 16px; font-size: 13px; width: auto; display: inline-block; }
+        
+        /* Header */
+        .app-header { background: white; padding: 20px 30px; border-radius: 16px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .app-header h1 { font-size: 24px; color: #1a1a2e; display: flex; align-items: center; gap: 10px; }
+        .user-badge { display: flex; align-items: center; gap: 12px; }
+        .role-tag { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .role-admin { background: #dbeafe; color: #1e40af; }
+        .role-operator { background: #d1fae5; color: #065f46; }
+        .logout-btn { background: #fee2e2; color: #dc2626; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        
+        /* Cards */
+        .card { background: white; border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+        .card-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; color: #1a1a2e; }
+        
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .stat-card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); border-top: 4px solid #667eea; position: relative; overflow: hidden; }
+        .stat-card::after { content: ''; position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: rgba(102, 126, 234, 0.1); border-radius: 50%; }
+        .stat-value { font-size: 36px; font-weight: 800; color: #1a1a2e; margin-bottom: 5px; }
+        .stat-label { color: #888; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        
+        /* Forms */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-grid .full { grid-column: 1 / -1; }
+        textarea { width: 100%; min-height: 100px; padding: 14px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; resize: vertical; font-family: inherit; }
+        textarea:focus { outline: none; border-color: #667eea; }
+        
+        /* Tables */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 14px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+        th { background: #f8fafc; font-weight: 700; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
+        tr:hover { background: #f8fafc; }
+        
+        /* Badges */
+        .badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-assigned { background: #dbeafe; color: #1e40af; }
+        .badge-in-progress { background: #c7d2fe; color: #3730a3; }
+        .badge-resolved { background: #d1fae5; color: #065f46; }
+        .badge-closed { background: #f1f5f9; color: #64748b; }
+        .priority-high { background: #fee2e2; color: #dc2626; }
+        .priority-medium { background: #fef3c7; color: #92400e; }
+        .priority-low { background: #d1fae5; color: #065f46; }
+        .priority-urgent { background: #fecaca; color: #991b1b; }
+        
+        /* Filters */
+        .filter-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-bar input, .filter-bar select { flex: 1; min-width: 180px; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 14px; }
+        
+        /* Mobile Cards */
+        .complaint-card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); border-left: 5px solid #667eea; }
+        .cc-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
+        .cc-title { font-size: 17px; font-weight: 700; color: #1a1a2e; }
+        .cc-meta { color: #888; font-size: 14px; line-height: 1.8; }
+        .cc-actions { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; }
+        
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
+        .modal { background: white; border-radius: 20px; padding: 30px; max-width: 550px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.25); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .modal-title { font-size: 22px; font-weight: 800; }
+        .close-btn { background: none; border: none; font-size: 28px; cursor: pointer; color: #999; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.3s; }
+        .close-btn:hover { background: #f0f0f0; color: #333; }
+        
+        /* Operator List */
+        .op-list { display: flex; flex-direction: column; gap: 10px; }
+        .op-item { padding: 16px; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; display: flex; align-items: center; gap: 14px; transition: all 0.3s; }
+        .op-item:hover, .op-item.selected { border-color: #667eea; background: #f5f3ff; }
+        .op-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; }
+        
+        /* Notifications */
+        .toast { position: fixed; top: 20px; right: 20px; background: white; padding: 18px 24px; border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); border-left: 5px solid #10b981; z-index: 2000; animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); max-width: 400px; }
+        .toast.error { border-left-color: #ef4444; }
+        @keyframes slideIn { from { transform: translateX(500px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .toast-title { font-weight: 800; margin-bottom: 6px; font-size: 15px; }
+        .toast-text { color: #666; font-size: 14px; }
+        
+        /* Empty State */
+        .empty { text-align: center; padding: 50px; color: #aaa; }
+        .empty svg { width: 80px; height: 80px; margin-bottom: 20px; opacity: 0.4; }
+        
+        /* Hidden */
+        .hidden { display: none !important; }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .app-container { padding: 15px; }
+            .app-header { flex-direction: column; gap: 15px; text-align: center; }
+            .filter-bar input, .filter-bar select { min-width: 100%; }
+        }
+        
+        /* Animations */
+        .fade-in { animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Loading */
+        .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); display: flex; align-items: center; justify-content: center; z-index: 3000; flex-direction: column; gap: 15px; }
+        .spinner { width: 50px; height: 50px; border: 4px solid #e0e0e0; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<!-- LOADING SCREEN -->
+<div id="loadingScreen" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <div style="color:#666;font-weight:600;">Loading...</div>
+</div>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="login-screen">
+    <div class="login-box">
+        <h2>LALA</h2>
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="loginEmail" required placeholder="your@email.com">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="loginPass" required placeholder="Enter password">
+            </div>
+            <button type="submit" class="btn btn-primary" id="loginBtn">Sign In</button>
+        </form>
+        <div id="loginError" style="margin-top:15px;color:#ef4444;font-size:14px;text-align:center;display:none;"></div>
+        <div style="margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 10px; font-size: 13px; color: #666; text-align: center;">
+            <strong>First time?</strong><br>
+            Please call 03742807117 for support.
+        </div>
+    </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp" class="hidden">
+    <div class="app-container">
+        <!-- Header -->
+        <div class="app-header">
+            <h1>🔧 Complaint Management System</h1>
+            <div class="user-badge">
+                <span id="userName">User</span>
+                <span class="role-tag" id="userRole">Admin</span>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+        
+        <!-- ADMIN VIEW -->
+        <div id="adminView">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="stTotal">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-card" style="border-top-color: #f59e0b;">
+                    <div class="stat-value" id="stPending">0</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+                <div class="stat-card" style="border-top-color: #667eea;">
+                    <div class="stat-value" id="stProgress">0</div>
+                    <div class="stat-label">In Progress</div>
+                </div>
+                <div class="stat-card" style="border-top-color: #10b981;">
+                    <div class="stat-value" id="stResolved">0</div>
+                    <div class="stat-label">Resolved</div>
+                </div>
+            </div>
+            
+            <!-- New Complaint -->
+            <div class="card">
+                <div class="card-title">➕ Log New Complaint</div>
+                <form id="complaintForm" onsubmit="submitComplaint(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Complaint Title *</label>
+                            <input type="text" id="cTitle" required placeholder="Brief title">
+                        </div>
+                        <div class="form-group">
+                            <label>Department *</label>
+                            <input type="text" id="cDept" required placeholder="Type department name...">
+                        </div>
+                        <div class="form-group">
+                            <label>Location / Room</label>
+                            <input type="text" id="cLocation" placeholder="e.g., Room 302, Building A">
+                        </div>
+                        <div class="form-group">
+                            <label>Priority</label>
+                            <select id="cPriority" style="width:100%;padding:14px;border:2px solid #e0e0e0;border-radius:10px;font-size:15px;">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
+                            </select>
+                        </div>
+                        <div class="form-group full">
+                            <label>Description</label>
+                            <textarea id="cDesc" placeholder="Detailed description..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Reported By</label>
+                            <input type="text" id="cReporter" placeholder="Person reporting">
+                        </div>
+                        <div class="form-group">
+                            <label>Contact Number</label>
+                            <input type="tel" id="cContact" placeholder="Phone number">
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <button type="submit" class="btn btn-primary" style="width: auto; padding: 14px 30px;">📋 Log Complaint</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Complaints List -->
+            <div class="card">
+                <div class="card-title" style="justify-content: space-between;">
+                    <span>📊 All Complaints</span>
+                    <div>
+                        <button class="btn btn-success btn-sm" onclick="exportToExcel()">📥 Export Excel</button>
+                    </div>
+                </div>
+                <div class="filter-bar">
+                    <input type="text" id="searchInput" placeholder="🔍 Search by title, ID, department..." onkeyup="renderAdmin()">
+                    <select id="filterStatus" onchange="renderAdmin()" style="flex:1;min-width:180px;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px;">
+                        <option value="">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="assigned">Assigned</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Department</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Assigned To</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- OPERATOR VIEW -->
+        <div id="operatorView" class="hidden">
+            <div class="card">
+                <div class="card-title">🔧 My Assigned Tasks</div>
+                <div id="opTasks"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">📋 Available Complaints</div>
+                <div id="opAvailable"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ASSIGN MODAL -->
+<div id="assignModal" class="modal-overlay hidden" onclick="if(event.target===this)closeAssignModal()">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">👤 Assign to Operator</div>
+            <button class="close-btn" onclick="closeAssignModal()">&times;</button>
+        </div>
+        <div class="op-list" id="opList"></div>
+    </div>
+</div>
+
+<!-- DETAILS MODAL -->
+<div id="detailsModal" class="modal-overlay hidden" onclick="if(event.target===this)closeDetailsModal()">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">📋 Complaint Details</div>
+            <button class="close-btn" onclick="closeDetailsModal()">&times;</button>
+        </div>
+        <div id="detailsContent"></div>
+    </div>
+</div>
+
+<!-- RESOLVE MODAL -->
+<div id="resolveModal" class="modal-overlay hidden" onclick="if(event.target===this)closeResolveModal()">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">✅ Resolve Complaint</div>
+            <button class="close-btn" onclick="closeResolveModal()">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>Resolution Notes *</label>
+            <textarea id="resolveNotes" placeholder="Describe what was done to resolve..."></textarea>
+        </div>
+        <div style="margin-top: 20px;">
+            <button class="btn btn-success" onclick="confirmResolve()">Mark as Resolved</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== STEP 5: PASTE YOUR FIREBASE CONFIG HERE ====================
+// Replace everything below with YOUR config from Step 2.2
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID",
+  measurementId: "YOUR_MEASUREMENT_ID"
+};
+// ==================== INITIALIZATION ====================
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+// ==================== STATE ====================
+let currentUser = null;
+let userRole = null;
+let complaints = [];
+let operators = [];
+let unsubscribeComplaints = null;
+let selectedComplaintId = null;
+
+// ==================== AUTHENTICATION ====================
+function handleLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value;
+    const pass = document.getElementById('loginPass').value;
+    const errorDiv = document.getElementById('loginError');
+    
+    showLoading(true);
+    
+    auth.signInWithEmailAndPassword(email, pass)
+        .then((userCredential) => {
+            currentUser = userCredential.user;
+            return loadUserRole();
+        })
+        .then(() => {
+            showLoading(false);
+            showApp();
+            showToast('Welcome!', `Logged in as ${currentUser.email}`);
+        })
+        .catch((error) => {
+            showLoading(false);
+            errorDiv.textContent = getAuthError(error.code);
+            errorDiv.style.display = 'block';
+        });
+}
+
+function getAuthError(code) {
+    const errors = {
+        'auth/user-not-found': 'No account found with this email',
+        'auth/wrong-password': 'Incorrect password',
+        'auth/invalid-email': 'Invalid email address',
+        'auth/too-many-requests': 'Too many attempts. Try again later',
+        'auth/network-request-failed': 'Network error. Check your connection'
+    };
+    return errors[code] || 'Login failed. Please try again';
+}
+
+function logout() {
+    auth.signOut().then(() => {
+        if (unsubscribeComplaints) unsubscribeComplaints();
+        currentUser = null;
+        userRole = null;
+        complaints = [];
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('mainApp').classList.add('hidden');
+        document.getElementById('loginForm').reset();
+        document.getElementById('loginError').style.display = 'none';
+    });
+}
+
+// Check auth state on load
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        currentUser = user;
+        loadUserRole().then(() => {
+            showApp();
+        });
+    } else {
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('mainApp').classList.add('hidden');
+    }
+});
+
+// ==================== USER ROLE MANAGEMENT ====================
+async function loadUserRole() {
+    // Check if user is admin (first user or specific email)
+    const adminEmails = ['admin@example.com']; // Add your admin emails here
+    if (adminEmails.includes(currentUser.email)) {
+        userRole = 'admin';
+        return;
+    }
+    
+    // Check Firestore users collection
+    const userDoc = await db.collection('users').doc(currentUser.uid).get();
+    if (userDoc.exists) {
+        userRole = userDoc.data().role || 'operator';
+    } else {
+        // New user - default to operator
+        userRole = 'operator';
+        await db.collection('users').doc(currentUser.uid).set({
+            email: currentUser.email,
+            role: 'operator',
+            name: currentUser.email.split('@')[0],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+}
+
+// ==================== REAL-TIME DATA SYNC ====================
+function startRealtimeSync() {
+    // Listen to complaints collection in real-time
+    unsubscribeComplaints = db.collection('complaints')
+        .orderBy('createdAt', 'desc')
+        .onSnapshot((snapshot) => {
+            complaints = [];
+            snapshot.forEach((doc) => {
+                complaints.push({ id: doc.id, ...doc.data() });
+            });
+            
+            if (userRole === 'admin') {
+                renderAdmin();
+            } else {
+                renderOperator();
+            }
+            updateStats();
+        }, (error) => {
+            console.error('Realtime sync error:', error);
+            showToast('Sync Error', 'Check your internet connection', true);
+        });
+    
+    // Load operators
+    db.collection('users').where('role', '==', 'operator').get()
+        .then((snapshot) => {
+            operators = [];
+            snapshot.forEach((doc) => {
+                operators.push({ id: doc.id, ...doc.data() });
+            });
+        });
+}
+
+// ==================== COMPLAINT CRUD ====================
+async function submitComplaint(e) {
+    e.preventDefault();
+    showLoading(true);
+    
+    const complaint = {
+        title: document.getElementById('cTitle').value,
+        department: document.getElementById('cDept').value,
+        location: document.getElementById('cLocation').value,
+        priority: document.getElementById('cPriority').value,
+        description: document.getElementById('cDesc').value,
+        reporter: document.getElementById('cReporter').value,
+        contact: document.getElementById('cContact').value,
+        status: 'pending',
+        assignedTo: null,
+        assignedToId: null,
+        assignedToEmail: null,
+        createdBy: currentUser.email,
+        createdById: currentUser.uid,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        resolvedAt: null,
+        resolution: ''
+    };
+    
+    try {
+        await db.collection('complaints').add(complaint);
+        showLoading(false);
+        showToast('Complaint Logged', 'Complaint created successfully');
+        document.getElementById('complaintForm').reset();
+    } catch (error) {
+        showLoading(false);
+        showToast('Error', 'Failed to save complaint', true);
+        console.error(error);
+    }
+}
+
+async function deleteComplaint(id) {
+    if (!confirm('Delete this complaint permanently?')) return;
+    showLoading(true);
+    
+    try {
+        await db.collection('complaints').doc(id).delete();
+        showLoading(false);
+        showToast('Deleted', 'Complaint removed');
+    } catch (error) {
+        showLoading(false);
+        showToast('Error', 'Failed to delete', true);
+    }
+}
+
+// ==================== ASSIGNMENT ====================
+function openAssignModal(id) {
+    selectedComplaintId = id;
+    const list = document.getElementById('opList');
+    
+    if (operators.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">No operators found. Add operators in Firebase Console.</div>';
+    } else {
+        list.innerHTML = operators.map(op => `
+            <div class="op-item" onclick="assignComplaint('${op.id}', '${op.name || op.email}')">
+                <div class="op-avatar">${(op.name || op.email).split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase()}</div>
+                <div>
+                    <div style="font-weight:700;">${op.name || op.email}</div>
+                    <div style="font-size:13px;color:#888;">${op.email}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+    document.getElementById('assignModal').classList.remove('hidden');
+}
+
+function closeAssignModal() {
+    document.getElementById('assignModal').classList.add('hidden');
+    selectedComplaintId = null;
+}
+
+async function assignComplaint(opId, opName) {
+    showLoading(true);
+    
+    try {
+        await db.collection('complaints').doc(selectedComplaintId).update({
+            assignedTo: opName,
+            assignedToId: opId,
+            status: 'assigned',
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        showLoading(false);
+        closeAssignModal();
+        showToast('Assigned', `Complaint assigned to ${opName}`);
+    } catch (error) {
+        showLoading(false);
+        showToast('Error', 'Failed to assign', true);
+    }
+}
+
+async function selfAssign(id) {
+    showLoading(true);
+    
+    try {
+        await db.collection('complaints').doc(id).update({
+            assignedTo: currentUser.email,
+            assignedToId: currentUser.uid,
+            assignedToEmail: currentUser.email,
+            status: 'assigned',
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        showLoading(false);
+        showToast('Assigned', `You took ownership of this complaint`);
+    } catch (error) {
+        showLoading(false);
+        showToast('Error', 'Failed to assign', true);
+    }
+}
+
+// ==================== STATUS UPDATES ====================
+async function startWork(id) {
+    showLoading(true);
+    try {
+        await db.collection('complaints').doc(id).update({
+            status: 'in-progress',
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        showLoading(false);
+        showToast('Started', 'Work in progress');
+    } catch (error) {
+        showLoading(false);
+        showToast('Error', 'Failed to update', true);
+    }
+}
+
+function openResolveModal(id) {
+    selectedComplaintId = id;
+    document.getElementById('resolveNotes').value = '';
+    document.getElementById('resolveModal').classList.remove('hidden');
+}
+
+function closeResolveModal() {
+    document.getElementById('resolveModal').classList.add('hidden');
+    selectedComplaintId = null;
+}
+
+async function confirmResolve() {
+    const notes = document.getElementById('resolveNotes').value.trim();
+    if (!notes) {
+        showToast('Required', 'Please add resolution notes', true);
+        return;
+    }
+    
+    showLoading(true);
+    try {
+        await db.collection('complaints').doc(selectedComplaintId).update({
+            status: 'resolved',
+            resolution: notes,
+            resolvedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        showLoading(false);
+        closeResolveModal();
+        showToast('Resolved!', 'Admin will be notified to review');
+    } catch (error) {
+        showLoading(false);
+        showToast('Error', 'Failed to resolve', true);
+    }
+}
+
+async function closeComplaint(id) {
+    showLoading(true);
+    try {
+        await db.collection('complaints').doc(id).update({
+            status: 'closed',
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        showLoading(false);
+        showToast('Closed', 'Complaint archived');
+    } catch (error) {
+        showLoading(false);
+        showToast('Error', 'Failed to close', true);
+    }
+}
+
+// ==================== RENDERING ====================
+function renderAdmin() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('filterStatus').value;
+    
+    let filtered = complaints.filter(c => {
+        const matchSearch = !search || 
+            (c.title && c.title.toLowerCase().includes(search)) || 
+            c.id.toLowerCase().includes(search) ||
+            (c.department && c.department.toLowerCase().includes(search)) ||
+            (c.assignedTo && c.assignedTo.toLowerCase().includes(search));
+        const matchStatus = !statusFilter || c.status === statusFilter;
+        return matchSearch && matchStatus;
+    });
+    
+    const tbody = document.getElementById('adminTableBody');
+    
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">No complaints found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = filtered.map(c => `
+        <tr class="fade-in">
+            <td><strong>${c.id.substring(0, 10)}...</strong></td>
+            <td>${c.title || 'N/A'}</td>
+            <td>${c.department || 'N/A'}</td>
+            <td><span class="badge priority-${c.priority || 'medium'}">${(c.priority || 'MEDIUM').toUpperCase()}</span></td>
+            <td><span class="badge badge-${c.status}">${c.status.replace('-', ' ').toUpperCase()}</span></td>
+            <td>${c.assignedTo || '<span style="color:#aaa;">Unassigned</span>'}</td>
+            <td>${fmtDate(c.createdAt)}</td>
+            <td>
+                <button class="btn btn-sm" onclick="viewDetails('${c.id}')" style="background:#f0f2f5;">👁️</button>
+                ${!c.assignedTo ? `<button class="btn btn-sm btn-warning" onclick="openAssignModal('${c.id}')">👤</button>` : ''}
+                ${c.status === 'resolved' ? `<button class="btn btn-sm btn-success" onclick="closeComplaint('${c.id}')">✓</button>` : ''}
+                <button class="btn btn-sm btn-danger" onclick="deleteComplaint('${c.id}')">🗑️</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderOperator() {
+    const myTasks = complaints.filter(c => 
+        c.assignedToId === currentUser.uid && 
+        c.status !== 'closed'
+    );
+    const available = complaints.filter(c => !c.assignedTo && c.status === 'pending');
+    
+    // My Tasks
+    const tasksEl = document.getElementById('opTasks');
+    if (myTasks.length === 0) {
+        tasksEl.innerHTML = `<div class="empty"><p>No tasks assigned to you</p></div>`;
+    } else {
+        tasksEl.innerHTML = myTasks.map(c => `
+            <div class="complaint-card fade-in" style="border-left-color: ${priorityColor(c.priority)}">
+                <div class="cc-header">
+                    <div>
+                        <div class="cc-title">${c.title || 'Untitled'}</div>
+                        <div class="cc-meta">📍 ${c.location || 'N/A'} • 🏢 ${c.department || 'N/A'}</div>
+                    </div>
+                    <span class="badge badge-${c.status}">${c.status.replace('-', ' ').toUpperCase()}</span>
+                </div>
+                <div class="cc-meta">
+                    <strong>ID:</strong> ${c.id.substring(0, 10)}...<br>
+                    <strong>Desc:</strong> ${c.description || 'No description'}<br>
+                    <strong>Contact:</strong> ${c.contact || 'N/A'}<br>
+                    <strong>Reported:</strong> ${fmtDate(c.createdAt)}
+                </div>
+                <div class="cc-actions">
+                    ${c.status === 'assigned' ? `<button class="btn btn-primary btn-sm" onclick="startWork('${c.id}')">▶️ Start Work</button>` : ''}
+                    ${c.status === 'in-progress' ? `<button class="btn btn-success btn-sm" onclick="openResolveModal('${c.id}')">✅ Resolve</button>` : ''}
+                    <button class="btn btn-sm" onclick="viewDetails('${c.id}')" style="background:#f0f2f5;">👁️ View</button>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // Available
+    const availEl = document.getElementById('opAvailable');
+    if (available.length === 0) {
+        availEl.innerHTML = `<div class="empty"><p>No available complaints</p></div>`;
+    } else {
+        availEl.innerHTML = available.map(c => `
+            <div class="complaint-card fade-in">
+                <div class="cc-header">
+                    <div class="cc-title">${c.title || 'Untitled'}</div>
+                    <span class="badge badge-pending">PENDING</span>
+                </div>
+                <div class="cc-meta">${c.department || 'N/A'} • ${c.location || 'N/A'}</div>
+                <div class="cc-actions">
+                    <button class="btn btn-primary btn-sm" onclick="selfAssign('${c.id}')">🙋 Self Assign</button>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+// ==================== DETAILS ====================
+function viewDetails(id) {
+    const c = complaints.find(x => x.id === id);
+    if (!c) return;
+    
+    document.getElementById('detailsContent').innerHTML = `
+        <div style="margin-bottom:20px;">
+            <span class="badge badge-${c.status}" style="font-size:14px;">${c.status.replace('-', ' ').toUpperCase()}</span>
+            <span class="badge priority-${c.priority || 'medium'}" style="font-size:14px;margin-left:8px;">${(c.priority || 'MEDIUM').toUpperCase()}</span>
+        </div>
+        <div style="display:grid;gap:14px;line-height:1.6;">
+            <div><strong>ID:</strong> ${c.id}</div>
+            <div><strong>Title:</strong> ${c.title || 'N/A'}</div>
+            <div><strong>Department:</strong> ${c.department || 'N/A'}</div>
+            <div><strong>Location:</strong> ${c.location || 'N/A'}</div>
+            <div><strong>Description:</strong> ${c.description || 'N/A'}</div>
+            <div><strong>Reported By:</strong> ${c.reporter || 'N/A'}</div>
+            <div><strong>Contact:</strong> ${c.contact || 'N/A'}</div>
+            <div><strong>Assigned To:</strong> ${c.assignedTo || 'Unassigned'}</div>
+            <div><strong>Created:</strong> ${fmtDate(c.createdAt)}</div>
+            <div><strong>Updated:</strong> ${fmtDate(c.updatedAt)}</div>
+            ${c.resolvedAt ? `<div><strong>Resolved:</strong> ${fmtDate(c.resolvedAt)}</div>` : ''}
+            ${c.resolution ? `<div style="background:#f0fdf4;padding:15px;border-radius:10px;border-left:4px solid #10b981;"><strong>Resolution:</strong><br>${c.resolution}</div>` : ''}
+        </div>
+    `;
+    document.getElementById('detailsModal').classList.remove('hidden');
+}
+
+function closeDetailsModal() {
+    document.getElementById('detailsModal').classList.add('hidden');
+}
+
+// ==================== STATS & EXPORT ====================
+function updateStats() {
+    document.getElementById('stTotal').textContent = complaints.length;
+    document.getElementById('stPending').textContent = complaints.filter(c => c.status === 'pending').length;
+    document.getElementById('stProgress').textContent = complaints.filter(c => ['assigned', 'in-progress'].includes(c.status)).length;
+    document.getElementById('stResolved').textContent = complaints.filter(c => c.status === 'resolved' || c.status === 'closed').length;
+}
+
+function exportToExcel() {
+    const headers = ['ID', 'Title', 'Department', 'Location', 'Priority', 'Status', 'Assigned To', 'Reporter', 'Contact', 'Description', 'Created', 'Resolved', 'Resolution'];
+    const rows = complaints.map(c => [
+        c.id, c.title || '', c.department || '', c.location || '', c.priority || '', c.status,
+        c.assignedTo || '', c.reporter || '', c.contact || '',
+        c.description || '', fmtDate(c.createdAt),
+        c.resolvedAt ? fmtDate(c.resolvedAt) : '',
+        c.resolution || ''
+    ]);
+    
+    let csv = '\uFEFF' + headers.join(',') + '\n';
+    rows.forEach(row => {
+        csv += row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',') + '\n';
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `complaints_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showToast('Export Complete', 'Downloaded as CSV (opens in Excel)');
+}
+
+// ==================== APP NAVIGATION ====================
+function showApp() {
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('mainApp').classList.remove('hidden');
+    document.getElementById('userName').textContent = currentUser.email;
+    document.getElementById('userRole').textContent = userRole;
+    document.getElementById('userRole').className = 'role-tag role-' + userRole;
+    
+    if (userRole === 'admin') {
+        document.getElementById('adminView').classList.remove('hidden');
+        document.getElementById('operatorView').classList.add('hidden');
+    } else {
+        document.getElementById('adminView').classList.add('hidden');
+        document.getElementById('operatorView').classList.remove('hidden');
+    }
+    
+    startRealtimeSync();
+}
+
+// ==================== UTILITIES ====================
+function fmtDate(timestamp) {
+    if (!timestamp) return 'N/A';
+    // Handle both Firestore Timestamp and ISO string
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}
+
+function priorityColor(p) {
+    const colors = { low: '#10b981', medium: '#f59e0b', high: '#ef4444', urgent: '#dc2626' };
+    return colors[p] || '#888';
+}
+
+function showToast(title, text, isError) {
+    const div = document.createElement('div');
+    div.className = 'toast fade-in' + (isError ? ' error' : '');
+    div.innerHTML = `<div class="toast-title">${title}</div><div class="toast-text">${text}</div>`;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 4000);
+}
+
+function showLoading(show) {
+    document.getElementById('loadingScreen').classList.toggle('hidden', !show);
+}
+</script>
+</body>
+</html>

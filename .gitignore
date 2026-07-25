@@ -1,0 +1,8 @@
+.firebase/
+firebase-debug.log
+
+hosting..cache
+
+node_modules/
+
+.DS_Store
